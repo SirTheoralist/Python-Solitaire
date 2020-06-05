@@ -1,0 +1,429 @@
+import tkinter as tk
+import random
+import winsound
+
+''' Hello, hello. Following is the composed code for Solitaire.
+    Feedback would be much appreciated. '''
+
+class Deck:
+    def __init__(self, cards, displayedCards):
+        self.cards = cards
+        self.displayedCards = displayedCards    # This list will contain the cards that the player has unlocked and can interact with
+
+    def shuffle(self):
+        random.shuffle(self.cards)
+    
+class Card:
+    def __init__(self, number, colour, suit):
+        self.number = number
+        self.colour = colour
+        self.suit = suit
+        self.location = None
+
+class Stock:
+    def __init__(self, stockCards):
+        self.cards = stockCards
+        for card in self.cards:
+            card.location = 'Stock'
+
+    def shuffle(self):
+        self.cards = [deck.cards[card] for card in range(24)]
+        for card in self.cards:
+            card.location = 'Stock'
+
+    def show_card(self, event):     # Move card from stock pile to waste pile
+        if self.cards != []:
+            self.cards[-1].location = 'Waste'
+            waste.cards.append(self.cards.pop(-1))
+            gui.setup_stock()
+            gui.setup_waste()
+            
+    def refil_cards(self, event):
+        self.cards = [waste.cards[card] for card in range(len(waste.cards) - 1, -1, -1)]
+        waste.cards = []
+        gui.setup_stock()
+        gui.setup_waste()
+
+class Waste:
+    def __init__(self, wasteCards):
+        self.cards = wasteCards
+
+    def renew(self):
+        self.cards = []
+
+    def move_card(self, moveList):  # Checks whether selected card can be moved to the tableau piles
+        if tableau.cards[moveList[1][0]] == [] and self.cards[moveList[0]].number == 13:
+            tableau.cards[moveList[1][0]].append(self.cards[moveList[0]])
+            del self.cards[moveList[0]]
+            gui.setup_waste()
+            gui.update_col(moveList[1][0])
+            return True
+        if self.cards[moveList[0]].number + 1 == tableau.cards[moveList[1][0]][moveList[1][1]].number:
+            if self.cards[moveList[0]].colour != tableau.cards[moveList[1][0]][moveList[1][1]].colour:
+                tableau.cards[moveList[1][0]].append(self.cards[moveList[0]])
+                del self.cards[moveList[0]]
+            gui.setup_waste()
+            gui.update_col(moveList[1][0])
+            return True
+        return False
+
+class Foundation:
+    def __init__(self):
+        self.cards = [[], [], [], []]
+
+    def renew(self):
+        self.cards = [[], [], [], []]
+
+    def drop_card(self, moveList):  # Checks whether selected card can be placed in the Foundation pile (from Waste)
+        if moveList[0][1] == 'Waste':   # ...to create a new pile with Ace
+            if waste.cards[moveList[0][0]].number == 1 and self.cards[moveList[1][0]] == []:
+                self.cards[moveList[1][0]].append(waste.cards[moveList[0][0]])
+                self.cards[moveList[1][0]][-1].location = 'Foundation'
+                del waste.cards[moveList[0][0]]
+                gui.setup_waste()
+                gui.setup_foundation()
+                return True
+            if waste.cards[moveList[0][0]].number - 1 == self.cards[moveList[1][0]][-1].number:     # ...to add to existing pile
+                if waste.cards[moveList[0][0]].suit == self.cards[moveList[1][0]][-1].suit:
+                    if waste.cards[moveList[0][0]].colour == self.cards[moveList[1][0]][-1].colour:
+                        self.cards[moveList[1][0]].append(waste.cards[moveList[0][0]])
+                        self.cards[moveList[1][0]][-1].location = 'Foundation'
+                        del waste.cards[moveList[0][0]]
+                        gui.setup_waste()
+                        gui.setup_foundation()
+                        return True
+        if moveList[0][1] == 'Tableau':     # Checks whether selected card can be placed in the Foundation pile (from Tableau)
+            if tableau.cards[moveList[0][0][0]][moveList[0][0][1]].number == 1 and self.cards[moveList[1][0]] == []:
+                self.cards[moveList[1][0]].append(tableau.cards[moveList[0][0][0]][moveList[0][0][1]])
+                self.cards[moveList[1][0]][-1].location = 'Foundation'
+                del tableau.cards[moveList[0][0][0]][moveList[0][0][1]]
+                gui.update_col(moveList[0][0][0])
+                gui.setup_foundation()
+                return True
+            if tableau.cards[moveList[0][0][0]][moveList[0][0][1]].number - 1 == self.cards[moveList[1][0]][-1].number:     # Existing pile
+                if tableau.cards[moveList[0][0][0]][moveList[0][0][1]].suit == self.cards[moveList[1][0]][-1].suit:
+                    if tableau.cards[moveList[0][0][0]][moveList[0][0][1]].colour == self.cards[moveList[1][0]][-1].colour:
+                        self.cards[moveList[1][0]].append(tableau.cards[moveList[0][0][0]][moveList[0][0][1]])
+                        self.cards[moveList[1][0]][-1].location = 'Foundation'
+                        del tableau.cards[moveList[0][0][0]][moveList[0][0][1]]
+                        gui.update_col(moveList[0][0][0])
+                        gui.setup_foundation()
+                        return True
+        return False
+                           
+    def pick_card(self, moveList):  # Check of selected card can be moved to the Tableau
+        if self.cards[moveList[0][0]][-1].number + 1 == tableau.cards[moveList[1][0][0]][moveList[1][0][1]].number:
+            if self.cards[moveList[0][0]][-1].colour != tableau.cards[moveList[1][0][0]][moveList[1][0][1]].colour:
+                tableau.cards[moveList[1][0][0]].append(self.cards[moveList[0][0]][-1])
+                tableau.cards[moveList[1][0][0]][-1].location = tableau.cards[moveList[1][0][0]][moveList[1][0][1]].location
+                del self.cards[moveList[0][0]][-1]
+                gui.update_col(moveList[1][0][0])
+                gui.setup_foundation()
+                return True
+        return False
+
+class Tableau:
+    def __init__(self, tableauCards):
+        self.unorderedCards = tableauCards
+        self.convert_to_grid()
+        for card in self.unorderedCards:
+            card.location = 'Tableau'
+
+    def shuffle(self):
+        self.unorderedCards = [deck.cards[card] for card in range(24, 52)]
+        for card in self.unorderedCards:
+            card.location = 'Tableau'
+        tableau.convert_to_grid()
+
+    def convert_to_grid(self):  # Turns normal list into a 2-D list
+        self.cards = []
+        start, end, counter = 0, 0, 1
+        while end < len(self.unorderedCards):
+            row = []
+            for count in range(start, end + 1):
+                row.append(self.unorderedCards[count])
+                if count == end:
+                    start = start + counter
+                    end = start + counter
+                    counter += 1
+            self.cards.append(row)
+
+    def move_cards(self, moveList):
+        moveFrom, moveTo = moveList[0][0], moveList[1][0]
+        if moveList[0][1] == 'Tableau':     # Check if selected card can be moved within the Tableau
+            if (self.cards[moveTo[0]] == []) and (self.cards[moveFrom[0]][moveFrom[1]].number == 13):
+                self.cards[moveTo[0]].extend( self.cards[moveFrom[0]] [ moveFrom[1] : len(self.cards[moveFrom[0]]) ] )
+                for card in range(moveFrom[1], len(self.cards[moveFrom[0]]) - 1):
+                        self.cards[moveFrom[0]][card].location = 'Tableau'
+                del self.cards[moveFrom[0]] [ moveFrom[1] : len(self.cards[moveFrom[0]]) ]
+                gui.update_col(moveFrom[0])
+                gui.update_col(moveTo[0])
+                return True   
+            if self.cards[moveFrom[0]][moveFrom[1]].number + 1 == self.cards[moveTo[0]][moveTo[1]].number:  # Existing pile
+                if self.cards[moveFrom[0]][moveFrom[1]].colour != self.cards[moveTo[0]][moveTo[1]].colour:                
+                    self.cards[moveTo[0]].extend( self.cards[moveFrom[0]] [ moveFrom[1] : len(self.cards[moveFrom[0]]) ] )
+                    for card in range(moveFrom[1], len(self.cards[moveFrom[0]]) - 1):
+                        self.cards[moveFrom[0]][card].location = self.cards[moveTo[0]][moveTo[1]].location
+                    del self.cards[moveFrom[0]] [ moveFrom[1] : len(self.cards[moveFrom[0]]) ]
+                    gui.update_col(moveFrom[0])
+                    gui.update_col(moveTo[0])
+                    return True
+                
+        if moveList[0][1] == 'Waste':   # From Waste to Tableau
+            if (self.cards[moveTo[0]] == []) and (waste.cards[moveFrom].number == 13):
+                self.cards[moveTo[0]].append(waste.cards[moveFrom])
+                self.cards[moveTo[0]][-1].location = 'Tableau'
+                del waste.cards[moveFrom]
+                gui.update_col(moveTo[0])
+                gui.setup_waste()
+                return True
+            if waste.cards[moveFrom].number + 1 == self.cards[moveTo[0]][moveTo[1]].number:
+                if waste.cards[moveFrom].colour != self.cards[moveTo[0]][moveTo[1]].colour:
+                    self.cards[moveTo[0]].append(waste.cards[moveFrom])
+                    self.cards[moveTo[0]][-1].location = self.cards[moveTo[0]][moveTo[1]].location
+                    del waste.cards[moveFrom]
+                    gui.update_col(moveTo[0])
+                    gui.setup_waste()
+                    return True
+        return False
+        
+    def new_pile(self):
+        pass
+
+class GUI:
+    
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Solitaire")
+        self.root.config(bg = bgColour)
+        self.create_layout()
+
+    def create_layout(self):
+        self.topBar = tk.Frame(self.root, bg = bgColour)    # Contains New Game button and Timer
+        self.topBar.pack(fill = 'x', pady = 5)
+
+        self.main = tk.Frame(self.root, bg = bgColour)  # Contains everything
+        self.main.pack()
+        
+        self.stockFrame = tk.Frame(self.main, bg = bgColour)
+        self.stockFrame.grid(row = 0, column = 0, sticky = 'NSEW', pady = (5, 35))
+
+        self.foundationFrame = tk.Frame(self.main, bg = bgColour)
+        self.foundationFrame.grid(row = 0, column = 1, columnspan = 2, sticky = 'NSEW', pady = (5, 35))
+        
+        self.tableauFrame = tk.Frame(self.main, bg = bgColour)
+        self.tableauFrame.grid(row = 1, column = 0, columnspan = 2, sticky = 'NSEW')
+
+        self.run = True; self.seconds = 00; self.minutes = 00; self.hours = 00
+        self.timer = tk.Label(self.topBar, bg = bgColour, fg = 'white', font = ("Consolas", 15, 'bold'))
+        self.newGame_button()
+        self.topBar.after(1, self.update_timer)
+        
+        self.count = 0
+        self.setup_stock()
+        self.setup_foundation()
+        self.setup_tableau() 
+        
+    def restore(self, parent):
+        for widgets in parent.winfo_children():
+            widgets.destroy()
+            
+        if stock.cards == waste.cards == [] and len(deck.displayedCards) == 52:
+            with open ("solvable_solitaire_games.txt", 'a') as file:
+                for line in file:
+                    print (line)
+        
+    def newGame_button(self):
+        self.newGame = tk.Label(self.topBar, text = 'NEW GAME',
+                                bg = bgColour, fg = 'white', font = ("Consolas", 15, 'bold'))
+        self.newGame.bind('<ButtonPress-1>', self.confirm_button)
+        self.newGame.pack(side = 'left', padx = 19)
+
+    def confirm_button(self, event):
+        try: self.confirm.destroy()
+        except: AttributeError
+        self.confirm = tk.Label(self.topBar, text = 'CONFIRM NEW GAME?',
+                                bg = bgColour, fg = 'white', font = ("Consolas", 15, 'bold'))
+        self.confirm.bind('<ButtonPress-1>', init)
+        self.confirm.after(5000 , self.confirm.destroy)
+        self.confirm.pack()
+    
+    def update_timer(self):
+        self.timer.config(text = f'TIME: {self.hours}:{self.minutes}:{self.seconds}')
+        self.timer.pack(side = 'right', padx = 19)
+        self.seconds += 1
+        if self.seconds == 60:
+            self.minutes += 1; self.seconds = 0
+        elif self.minutes == 60:
+            self.hours += 1; self.minutes = 0
+        self.topBar.after(1000, self.update_timer)
+
+    def setup_stock(self):
+        self.restore(self.stockFrame)
+    
+        if stock.cards == [] or 1:
+            space = tk.Label(self.stockFrame, text = u'\u26ab', height = 3, width = 5, font = ("Consolas", 19, 'bold'),
+                                 bg = bgColour, fg = 'light slate grey', borderwidth = 1, relief = "flat")
+            space.bind('<ButtonPress-1>', stock.refil_cards)
+            space.grid(row = 0, column = 0, padx = 15)
+        
+        for card in stock.cards:
+            self.restore(self.stockFrame)
+            self.stockCard = tk.Label(self.stockFrame, text = cardBack, height = 3, width = 5, bg = cardBgColour, fg = cardBackdesign,
+                                      font = ("Consolas", 19), borderwidth = 1, relief = "solid")
+            self.stockCard.bind('<ButtonPress-1>', stock.show_card)
+            self.stockCard.grid(row = 0, column = 0, padx = 15)
+
+    def setup_waste(self):
+        if waste.cards == []:
+            space = tk.Label(self.stockFrame, bg = bgColour, height = 3, width = 5,
+                             font = ("Consolas", 19), borderwidth = 1, relief = "flat")
+            space.bind('<ButtonPress-1>', stock.refil_cards)
+            space.grid(row = 0, column = 1, padx = 15)
+            
+        for index, card in enumerate(waste.cards):
+            self.wasteCard = tk.Label(self.stockFrame, text = str(values[card.number]) + '  ' + card.suit , font = ("Consolas", 19),
+                                      bg = card.colour, fg = 'white', height = 3, width = 5, borderwidth = 1, relief = "solid", anchor = 'n')
+            self.wasteCard.grid(row = 0, column = 1, padx = 15)
+            self.wasteCard.bind('<ButtonPress-1>',
+                                lambda event, index = index: self.make_list(event, index, waste.cards[index].location))
+
+    def setup_foundation(self):
+        for pileNum, pile in enumerate(foundation.cards):
+            if pile == []:
+                self.foundationCard = tk.Label(self.foundationFrame, height = 3, width = 5, font = ("Consolas", 19),
+                                 bg = bgColour, borderwidth = 1, relief = "solid")
+                self.foundationCard.bind('<ButtonPress-1>',
+                                         lambda event, index = pileNum: self.make_list(event, index, 'Foundation'))
+                
+            for card in pile:
+                self.foundationCard = tk.Label(self.foundationFrame, height = 3, width = 5, text = str(values[card.number]) + '  ' + card.suit ,
+                                          font = ("Consolas", 19), bg = card.colour, fg = 'white', borderwidth = 1, relief = "solid", anchor = 'n')
+                self.foundationCard.bind('<ButtonPress-1>',
+                                         lambda event, index = pileNum: self.make_list(event, index, 'Foundation'))
+            self.foundationCard.grid(row = 0, column = pileNum, padx = 15)
+            
+    def setup_tableau(self):
+        self.colList = []
+        
+        for col in range(7):
+            colFrame = tk.Frame(self.tableauFrame, bg = bgColour)
+            colFrame.grid(row = 0, column = col, sticky = 'N')
+            self.colList.append(colFrame)
+            self.update_col(col)
+            
+    def update_col(self, col):
+        self.restore(self.colList[col])
+                
+        if tableau.cards[col] == []:
+                space = tk.Label(self.colList[col], height = 3, width = 5, font = ("Consolas", 19),
+                                 bg = bgColour, borderwidth = 1, relief = "solid")
+                space.bind('<ButtonPress-1>', lambda event, index = [col, 0]:
+                           self.make_list(event, index, "Tableau"))
+                space.pack(side = 'top', padx = 15)
+                
+        for row, card in enumerate(tableau.cards[col]):              
+            self.tableauCard = tk.Label(self.colList[col], text = cardBack, font = ("Consolas", 19), bg = cardBgColour, fg = cardBackdesign,
+                                        height = 1, width = 5, borderwidth = 1, relief = "solid", anchor = 'n')
+            if row == len(tableau.cards[col]) - 1 or card in deck.displayedCards:
+                self.tableauCard.config(bg = card.colour, text = str(values[card.number]) + '  ' + card.suit ,
+                                        font = ("Consolas", 19), fg = 'white', anchor = 'n')
+                if row == len(tableau.cards[col]) - 1:
+                    self.tableauCard.config(height = 3)
+                self.tableauCard.bind('<ButtonPress-1>', lambda event, index = [col, row]:
+                                      self.make_list(event, index, tableau.cards[col][row].location))
+                deck.displayedCards.append(card)
+            self.tableauCard.pack(side = 'top', padx = 15)
+                           
+    def make_list(self, event, index, location):
+        if self.count == 0:
+            self.moveList = []
+            self.moveList.append([index, location])
+            self.count = 1
+            
+        else:
+            self.moveList.append([index, location])
+            self.count = 0
+
+            if self.moveList[0][1] == self.moveList[1][1] == 'Tableau': #Tableau to Tableau move check
+                if not tableau.move_cards(self.moveList):
+                    self.moveList = [[index, tableau.cards[index[1]][index[1]].location]]
+                    self.count = 1
+                return None
+                
+            if [self.moveList[0][1], self.moveList[1][1]] == ['Waste', 'Tableau']: #Waste to Tableau move check
+                if not tableau.move_cards(self.moveList):
+                    self.moveList = [index, tableau.cards[index[1]][index[1]].location]
+                    self.count = 1
+                return None
+
+            if [self.moveList[0][1], self.moveList[1][1]] == ['Waste', 'Foundation']: #Waste to Foundation move check
+                if not foundation.drop_card(self.moveList):
+                    self.moveList = []
+                    self.count = 1
+                return None
+                                                                                                                                                                                                                                                                                                                                                          
+            if [self.moveList[0][1], self.moveList[1][1]] == ['Tableau', 'Foundation']: #Tableau to Foundation move check
+                if not foundation.drop_card(self.moveList):
+                    self.moveList = [index, 'Foundation']
+                    self.count = 1 
+                return None
+                    
+            if [self.moveList[0][1], self.moveList[1][1]] == ['Foundation', 'Tableau']: #Foundation to Tableau move check
+                if not foundation.pick_card(self.moveList):
+                    self.moveList = [index, tableau.cards[index[1]][index[1]].location]
+                    self.count = 1 
+                return None
+
+    def deselect_card(self, event):
+        self.moveList = []
+        print ("Cleared")
+            
+def init(event):
+    deck.shuffle()
+    deck.displayedCards = []
+    stock.shuffle()
+    waste.renew()
+    foundation.renew()
+    tableau.shuffle()
+    gui.moveList = []
+    gui.restore(gui.root)
+    gui.create_layout()
+    
+    tabCards = []
+    for col in tableau.cards:
+        for card in col:
+            tabCards.append(f"{card.number} {card.colour} {card.suit.encode()}")
+
+    stockCards = []
+    for card in stock.cards:
+        stockCards.append(f"{card.number} {card.colour} {card.suit.encode()}")
+
+suits = [u'\u2665', u'\u2666', u'\u2660', u'\u2663'] #Hearts, Diamonds, Spades, Clubs
+numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+values = {1 : "A", 2 : 2, 3 : 3, 4 : 4, 5 : 5, 6 : 6, 7 : 7, 8 : 8, 9: 9, 10 : 10, 11 : "J", 12 : "Q", 13 : "K"}
+deck = []
+
+cardBack = 4*'❈' + '\n' + '❈Ⓚ❈' + '\n' + 4*'❈'
+cardBgColour = 'midnight blue'
+cardBackdesign = 'royal blue'
+bgColour = 'dark slate grey'
+
+for suit in suits:
+    for number in numbers:
+        card = Card(number, "black", suit) if suit in [u'\u2660', u'\u2663'] else Card(number, "red", suit)
+        deck.append(card)
+
+deck = Deck(deck, [])
+deck.shuffle()
+random.shuffle(deck.cards)
+stock = Stock([deck.cards[card] for card in range(24)])
+waste = Waste([])
+tableau = Tableau([deck.cards[card] for card in range(24, 52)])
+tableau.convert_to_grid()
+foundation = Foundation()
+
+gui = GUI(tk.Tk())
+##if True:
+##winsound.PlaySound('KushSong.wav', winsound.SND_LOOP + winsound.SND_ASYNC)
+gui.root.mainloop()
